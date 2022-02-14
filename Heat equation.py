@@ -4,86 +4,85 @@ Created on Wed Jun  9 17:11:06 2021
 
 @author: Monica
 """
-#importo le librerie necessarie
-import numpy as np #mi permette di lavorare con gli array
-import matplotlib.pyplot as plt #mi permette di mostrare graficamente i risultati ottenuti
-import scipy.optimize as spo #mi permette di fare il fit di una certa distribuzione
+
+import numpy as np 
+import matplotlib.pyplot as plt 
+import scipy.optimize as spo 
 
 
-N_x = 200 #numero di step spaziali
-N_t = 16000 #numero di step temporali
-alpha = [0.5, 5, 50] #diffusività termica
-L = 100 #lunghezza sistema unidimensionale (sbarra)
+N_x = 200 #number of spatial steps
+N_t = 16000 #number of time steps
+alpha = [0.5, 5, 50] #thermal diffusivity
+L = 100 #length 1D system
 h = L / N_x #step spaziale
 dt = np.copy(alpha) #timestep
 for i in range(3):
     dt[i] = h**2 / (2 * alpha[i]) * 0.9
-T0 = 300 #temperatura media
-A0 = 10 #ampiezza iniziale del profilo
-Lambda = [L / 2, L, L / 4] #lunghezza d'onda del profilo
+T0 = 300 #average temperature
+A0 = 10 #initial profile amplitude
+Lambda = [L / 2, L, L / 4] #profile wavelenght
 
-#condizioni periodiche al contorno
+#cboundary conditions
 def boundary_conditions(old_T, new_T, condition):
-    if condition == "Dirichlet": #condizione al contorno di Dirichlet
-        return old_T[0], old_T[-1] #le temperature agli estremi sono fisse
-    elif condition == "Neumann": #condizione al contorno di Neumann
-        return new_T[1], new_T[-2] #non c'è flusso di calore agli estremi
-    return 0, 0 #nel caso non vengano date condizioni al contorno
+    if condition == "Dirichlet": 
+        return old_T[0], old_T[-1] #fixed temperatures at ends
+    elif condition == "Neumann": 
+        return new_T[1], new_T[-2] #no heat flow at ends
+    return 0, 0 #no boundary conditions
 
-for j in range(len(Lambda)): #ciclo for che fa variare la lunghezza d'onda
-    for k in range(len(alpha)): #ciclo for che fa variare la diffusività termica
+for j in range(len(Lambda)): #modifies wavelenght
+    for k in range(len(alpha)): #modifies thermal diffusivity
 
-        #definisce le condizioni iniziali del sistema
+        #defines initial system conditions
         def initial_T(T0, A0, x, Lambda, j):
             return T0 - A0 * np.cos(2 * np.pi * x / Lambda[j])
         
-        #regola la variazione di temperatira lungo la sbarra
+        #regulates temperature changes along the system
         def update_T_x(N_x, old_T, alpha, h, dt, boundary, k):
             new_T = np.zeros(N_x)
             for i in range(1, N_x - 1):
-                #applico l'equazione del calore
+                #heat equation
                 new_T[i] = old_T[i] + dt[k] * alpha[k] / h**2 * (old_T[i+1] + old_T[i-1] - 2 * old_T[i])
-            #applico le condizioni periodiche al contorno
+            #boundary conditions
             new_T[0], new_T[-1] = boundary_conditions(old_T, new_T, boundary) 
             return new_T
         
-        #evoluzione delle temperature allo scorrere del tempo
+        #temperature evolution in time
         def update_T_t(N_t, T, alpha, h, dt, boundary, k):
-            T[0, :] = initial_T(T0, A0, x, Lambda, j) #fisso le temperature all'istante 0
+            T[0, :] = initial_T(T0, A0, x, Lambda, j) #temperature at t=0
             for i in range(1, N_t):
-                #applico la funzione precedente a tutti i tempi
-                T[i] = update_T_x(N_x, T[i - 1], alpha, h, dt, boundary, k)
+                    T[i] = update_T_x(N_x, T[i - 1], alpha, h, dt, boundary, k)
             return T
         
         
-        x = np.linspace(0, L, N_x) #array di lunghezze
-        t = np.linspace(0, N_t * dt[k], N_t) #array di tempi
+        x = np.linspace(0, L, N_x) 
+        t = np.linspace(0, N_t * dt[k], N_t) 
         T = np.zeros([N_t, N_x])
-        T = update_T_t(N_t, T, alpha, h, dt, "Neumann", k) #calcolo la matrice di temperature
+        T = update_T_t(N_t, T, alpha, h, dt, "Neumann", k) 
         
         print("alpha = ", alpha[k], "lambda = ", Lambda[j])
         
     
-        #plotto il profilo bidimensionale di temperatura lungo x al variare del tempo
+        #2D graph of temperature profile 
         fig, ax = plt.subplots()
-        for i in range(0, N_t, int(N_t / (2000/Lambda[j]))): #plotto solo un numero ridotto di tempi
+        for i in range(0, N_t, int(N_t / (2000/Lambda[j]))): #just a small number of times 
             ax.plot([h * i for i in range(N_x)], T[i])
         ax.set_xlabel("x (m)")
         ax.set_ylabel("T (K)")
-        ax.set_title("Profilo di temperatura (Neumann)")
+        ax.set_title("Temperature profile (Neumann)")
         
-        #plotto il grafico tridimensionale dell'andamento della temperatura
+        #3D graph of temperature profile
         X, Y = np.meshgrid(x, t)
         fig, ax = plt.figure(), plt.axes(projection="3d")
-        ax.plot_surface(Y, X, T, cmap = plt.cm.coolwarm, vmax = 301, linewidth = 0, rstride = 200, cstride = 1)
+        ax.plot_surface(Y, X, T, cmap = plt.cm.coolwarm, vmax = 301, linewidth = 0, rstride = 200, cstride = 1) #regulates colour with temperature
         ax.set_xlabel("t (s)")
         ax.set_ylabel("x (m)")
         ax.set_zlabel("T (K)")
         
-        #fit dell'andamento dell'ampieza del profilo di temperatura
+        #fit of temperature profile
         def fit(t, tau, c):
-            return A0 * np.exp(-t/tau) + c #funzione esponenziale teorica
-        maximums = np.zeros(N_t) #array dei punti di massimo
+            return A0 * np.exp(-t/tau) + c #theoretical exponential function
+        maximums = np.zeros(N_t) #array of max points
         for i in range(N_t):
             maximums[i] = np.max(T[i, :])
         
@@ -94,16 +93,16 @@ for j in range(len(Lambda)): #ciclo for che fa variare la lunghezza d'onda
         ax1.plot(t, maximums, color = "b", linewidth = 1, label = "Data")
         ax1.set_xlabel("t (s)")
         ax1.set_ylabel("T (K)")
-        ax1.set_title("Andamento dell'ampiezza")
+        ax1.set_title("Amplitude trend")
         ax1.legend()
         print(p)
-        tau = p[0] #ricavo il tempo di rilassamento dal fit
+        tau = p[0] #calculation of relaxation time from fit
         
-        #calcolo la diffusività termica dalla formula        
+        #thermal diffusivity        
         alpha_teo = Lambda[j]**2 / (4 * np.pi**2 * tau)
-        print("tempo di rilassamento = ", tau) #tempo di rilassamento 
-        print("alpha calcolato = ", alpha_teo) #diffusività termica
-        print("discrepanza: ", abs(alpha_teo - alpha[k]) * 100 / alpha[k], "%") #discrepanza percentuale tra le alpha
+        print("relaxation time = ", tau)  
+        print("calculated alpha = ", alpha_teo) 
+        print("discrepancy: ", abs(alpha_teo - alpha[k]) * 100 / alpha[k], "%") #discrepancy between alphas
         print("\n")
 
         plt.show()
